@@ -27,6 +27,10 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 openai.organization = os.getenv("OPENAI_ORGANIZATION")
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+# Gemini OpenAI compatible endpoint
+# Docs: https://ai.google.dev/gemini-api/docs/openai
+GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
 def get_content_from_message(message):
     """
     Extract content from a message, handling both simple string content
@@ -64,14 +68,50 @@ def get_content_from_message(message):
                 parts.append(image_content)
     return parts
 
+def _ask_gemini_openai_compat(history, model_name="gemini-2.5-flash"):
+    """
+    Call Gemini via the OpenAI-compatible endpoint.
+
+    Expects `history` to be OpenAI chat format:
+      [{"role":"system"|"user"|"assistant", "content": "..."}] or multimodal parts.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": model_name,
+        "messages": history,
+        "max_tokens": 4096,
+    }
+
+    r = requests.post(GEMINI_OPENAI_URL, headers=headers, json=payload, timeout=180)
+    r.raise_for_status()
+    data = r.json()
+    return data["choices"][0]["message"]["content"]
+
 def ask_agent(model, history):
     max_retries = 5
     count = 0
     system_cache = {}
     while count < max_retries:
         try:
-            # Handle Claude models
-            if model.startswith('claude'):
+            # -----------------------------
+            # Gemini
+            # -----------------------------
+            if model in ["gemini", "gemini-2.5-flash"]:
+                selected_model = "gemini-2.5-flash" if model == "gemini" else model
+                return _ask_gemini_openai_compat(history, selected_model)
+
+            # -----------------------------
+            # Claude models
+            # -----------------------------
+            elif model.startswith('claude'):
                 selected_model = 'claude-3-5-sonnet-latest'
                 system_content = None
                 messages = []
@@ -108,8 +148,10 @@ def ask_agent(model, history):
                 response = anthropic_client.messages.create(**api_params)
                 
                 return response.content[0].text
-                
-            # Handle OpenAI models
+
+            # -----------------------------
+            # OpenAI models
+            # -----------------------------
             elif model in ['gpt-4o-new', 'gpt-4-turbo', 'gpt-4o']:
                 if model == 'gpt-4o-new':
                     model = 'gpt-4o-2024-11-20'
@@ -127,7 +169,8 @@ def ask_agent(model, history):
         except (openai.error.RateLimitError, 
                 openai.error.ServiceUnavailableError, 
                 openai.error.APIError,
-                anthropic.RateLimitError) as e:
+                anthropic.RateLimitError,
+                requests.exceptions.RequestException,) as e:
             count += 1
             print(f'API error: {str(e)}')
             wait_time = 60 + 10*random()  # Random wait between 60-70 seconds
