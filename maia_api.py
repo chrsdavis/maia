@@ -441,7 +441,7 @@ class Tools:
 
     """
 
-    def __init__(self, path2save: str, device: str, DatasetExemplars: DatasetExemplars = None, text2image_model_name='flux', p2p_model_name='instdiff', image2text_model_name='gpt-4o'):
+    def __init__(self, path2save: str, device: str, DatasetExemplars: DatasetExemplars = None, text2image_model_name='flux', p2p_model_name='instdiff', image2text_model_name='gemini-2.5-flash'):
         """
         Initializes the Tools object.
 
