@@ -27,7 +27,7 @@ layers = {
 
 def call_argparse():
     parser = argparse.ArgumentParser(description='Process Arguments')	
-    parser.add_argument('--maia', type=str, default='claude', choices=['claude','gpt-4o','gpt-4-turbo','gemini','gemini-2.5-flash'], help='maia agent name')	
+    parser.add_argument('--maia', type=str, default='claude', choices=['claude','gpt-4o','gpt-4-turbo','gemini','gemini-2.5-flash'], help='maia agent name')
     parser.add_argument('--task', type=str, default='neuron_description', choices=['neuron_description'], help='task to solve, default is neuron description')
     parser.add_argument('--model', type=str, default='resnet152', choices=['resnet152','clip-RN50','dino_vits8','synthetic_neurons'], help='model to interp')
     parser.add_argument('--units', type=str2dict, default='layer4=122', help='units to interp')	
@@ -39,7 +39,8 @@ def call_argparse():
     parser.add_argument('--path2prompts', type=str, default='./prompts/', help='path to prompt to use')	
     parser.add_argument('--path2exemplars', type=str, default='./exemplars/', help='path to net disect top 15 exemplars images')	
     parser.add_argument('--device', type=int, default=0, help='gpu decvice to use (e.g. 1)')	
-    parser.add_argument('--text2image', type=str, default='flux', choices=['flux','sd','dalle'], help='name of text2image model')	
+    parser.add_argument('--text2image', type=str, default='flux', choices=['flux','sd','dalle'], help='name of text2image model')
+    parser.add_argument('--image2text', type=str, default='gemini-2.5-flash', choices=['claude','gpt-4o','gpt-4-turbo','gemini','gemini-2.5-flash'], help='model for summarize_images / describe_images')
     parser.add_argument('--p2p_model', type=str, default='instdiff', choices=['instdiff','ip2p'], help='name of p2p model')
     args = parser.parse_args()
     return args
@@ -112,7 +113,7 @@ def main(args):
                 system = Synthetic_System(unit, gt_label, layer, args.device)
             else:
                 system = System(unit, layer, args.model, args.device, net_dissect.thresholds) # initialize the system class
-            tools = Tools(path2save, args.device, net_dissect, text2image_model_name=args.text2image) # initialize the tools class
+            tools = Tools(path2save, args.device, net_dissect, text2image_model_name=args.text2image, image2text_model_name=args.image2text,) # initialize the tools class
             experiment_env = ExperimentEnvironment(system, tools, globals()) # initialize the experiment environment
 
             tools.update_experiment_log(role='system', type="text", type_content=maia_api) # update the experiment log with the system prompt
