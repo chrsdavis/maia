@@ -111,7 +111,38 @@ class System:
             resnet152 = models.resnet152(weights='IMAGENET1K_V1').to(self.device)  
             model = resnet152.eval()
         elif model_name == 'dino_vits8':
-            model = torch.hub.load('facebookresearch/dino:main', 'dino_vits8').to(self.device).eval()
+            # FIXME: had to do all ths to solve `utils` shadowing issue
+            import sys
+            import importlib.util
+
+            hub_dir = os.path.join(torch.hub.get_dir(), "facebookresearch_dino_main")
+            dino_utils_path = os.path.join(hub_dir, "utils.py")
+
+            # If the repo was not cached yet, trigger the download once.
+            if not os.path.exists(dino_utils_path):
+                try:
+                    torch.hub.load('facebookresearch/dino:main', 'dino_vits8')
+                except Exception:
+                    pass
+
+            if not os.path.exists(dino_utils_path):
+                raise FileNotFoundError(f"Could not find DINO utils.py at {dino_utils_path}")
+
+            prev_utils = sys.modules.get("utils")
+
+            spec = importlib.util.spec_from_file_location("utils", dino_utils_path)
+            dino_utils = importlib.util.module_from_spec(spec)
+            assert spec.loader is not None
+            spec.loader.exec_module(dino_utils)
+            sys.modules["utils"] = dino_utils
+
+            try:
+                model = torch.hub.load('facebookresearch/dino:main', 'dino_vits8').to(self.device).eval()
+            finally:
+                if prev_utils is not None:
+                    sys.modules["utils"] = prev_utils
+                else:
+                    sys.modules.pop("utils", None)
         elif model_name == "clip-RN50": 
             name = 'RN50'
             full_model, preprocess = clip.load(name)
